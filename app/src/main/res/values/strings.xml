@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Test app</string>
+    <string name="Greeting">Hello</string>
+    <string name="ImageDescribe"> Beautiful Place</string>
+</resources>
