@@ -368,8 +368,9 @@
             android:padding="16dp">
 
                 <Button
+                    android:id="@+id/btn_change_act"
                     android:layout_width="wrap_content"
-                    android:layout_height="30dp"
+                    android:layout_height="50dp"
                     android:background="@drawable/rounded_btn"
                     android:text="Click me"
                     android:textColor="@color/white"
@@ -377,12 +378,11 @@
                     />
                 <Button
                     android:layout_width="wrap_content"
-                    android:layout_height="30dp"
+                    android:layout_height="50dp"
                     android:text="Spain"
                     android:textColor="@color/white"
                     android:background="@drawable/rounded_btn" />
 
         </LinearLayout>
-
 
 </LinearLayout>
