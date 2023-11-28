@@ -1,30 +1,23 @@
 package com.example.testapp
 
-import android.content.Intent
 import android.os.Bundle
-import android.view.View
-import android.widget.Button
+import android.util.Log
+import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Place
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.FilledTonalButton
@@ -33,34 +26,70 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.testapp.ui.theme.TestAppTheme
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.Call
+import androidx.lifecycle.ViewModel
+import retrofit2.Callback
+import retrofit2.Response
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.example.testapp.data.UnsplashApiProvider
+import com.example.testapp.data.UnsplashPhoto
+import com.example.testapp.data.UnsplashPhotoDetails
+import com.example.testapp.data.cb.UnsplashDetailResult
+import com.example.testapp.data.cb.UnsplashResult
 
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), UnsplashResult {
+    private val provider = UnsplashApiProvider()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent{
             TestAppTheme {
-                ImageDetail()
+                ImageDetail(provider)
             }
         }
+    }
+    override fun onDataFetchedSuccess(images: List<UnsplashPhoto>) {
+        // Update the state with the fetched images
+        // This will automatically trigger a recomposition
+        setContent {
+            TestAppTheme {
+//                ImageDetail(provider, images)
+                ErrorPage()
+            }
         }
     }
 
-fun onClick() {
-    return
+    override fun onDataFetchedFailed() {
+        setContent {
+            TestAppTheme {
+                ErrorPage()
+            }
+        }
+    }
+}
+
+@Composable
+fun ErrorPage() {
+    Text(text = "ERROR")
 }
 
 @Composable
@@ -73,11 +102,40 @@ fun GridItem(topic: String, details: String) {
     })
 }
 @Composable
-fun ImageDetail() {
+fun ImageDetail(provider: UnsplashApiProvider, images: List<UnsplashPhoto> = emptyList()) {
+    var imageList by remember { mutableStateOf(images) }
+    var imageDetail by remember { mutableStateOf<UnsplashPhotoDetails?>(null) }
+    LaunchedEffect(key1 = Unit) {
+        if (images.isEmpty()) {
+            provider.fetchImages(object : UnsplashResult {
+                override fun onDataFetchedSuccess(images: List<UnsplashPhoto>) {
+                    imageList = images
+                    if (imageList.isNotEmpty()) {
+                        val firstImageId = imageList.first().id
+                        provider.fetchDetailsOnPhoto(firstImageId, object : UnsplashDetailResult {
+                            override fun onDataFetchedSuccess(detail: UnsplashPhotoDetails) {
+                                imageDetail = detail
+                                Log.d("Test", "${imageDetail}")
+                            }
+                            override fun onDataFetchedFailed() {
+                                Log.d("ERR", "ERRRRRR")
+                            }
+                        })
+                    }
+
+                }
+
+                override fun onDataFetchedFailed() {
+                }
+            })
+        }
+
+    }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier
         .fillMaxWidth()
-        .background(color = Color.Black).fillMaxSize()
-        ) {
+        .background(color = Color.Black)
+        .fillMaxSize()
+    ) {
         // Cover Image
         item {
 
@@ -87,12 +145,11 @@ fun ImageDetail() {
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.test),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                )
+
+                if(imageList.isNotEmpty()) {
+                    AsyncImage(model = imageList[0].urls.regular, contentDescription = null)
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -111,12 +168,12 @@ fun ImageDetail() {
                             .align(Alignment.CenterVertically)
                     )
                     Text(
-                        text = stringResource(id = R.string.ImageDescribe),
+                        text = imageDetail?.description.toString(),
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Light,
 
-                    )
+                        )
                 }
             }
         }
@@ -138,7 +195,7 @@ fun ImageDetail() {
 
                 // Name TextView
                 Text(
-                    text = "John Doe",
+                    text = imageDetail?.user?.name.toString(),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
@@ -188,14 +245,14 @@ fun ImageDetail() {
                 .fillMaxWidth()
                 .padding(16.dp, 8.dp)){
                 Column (modifier=Modifier.weight(1f)) {
-                    GridItem(topic = "Camera", details = "iPhone15 Pro")
-                    GridItem(topic = "Focal Length", details = "24mm")
-                    GridItem(topic = "ISO", details = "800")
+                    GridItem(topic = "Camera", details = imageDetail?.exif?.model ?: "N/A")
+                    GridItem(topic = "Focal Length", details = imageDetail?.exif?.focal_length ?: "N/A")
+                    GridItem(topic = "ISO", details = imageDetail?.exif?.iso.toString())
                 }
                 Column (modifier=Modifier.weight(1f)){
-                    GridItem(topic = "Aperture", details = "f/2.8")
-                    GridItem(topic = "Shutter Speed", details = "1/150")
-                    GridItem(topic = "Dimensions", details = "1080x1920")
+                    GridItem(topic = "Aperture", details = imageDetail?.exif?.aperture ?: "N/A")
+                    GridItem(topic = "Shutter Speed", details = imageDetail?.exif?.exposure_time ?: "N/A")
+                    GridItem(topic = "Dimensions", details = imageDetail?.width.toString() + "x" + imageDetail?.height.toString())
                 }
             }
         }
@@ -210,18 +267,20 @@ fun ImageDetail() {
             )
         }
         item {
-            Row ( modifier = Modifier.fillMaxWidth().padding(16.dp, 16.dp)){
-                Column (horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)){
-                    Text(text = "Views", color=Color.White, fontSize = 14.sp)
-                    Text(text = "1.2B", color=Color.LightGray, fontSize = 12.sp)
-                }
+            Row ( modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp, 16.dp)){
+//                Column (horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)){
+//                    Text(text = "Views", color=Color.White, fontSize = 14.sp)
+//                    Text(text = imageDetail?., color=Color.LightGray, fontSize = 12.sp)
+//                }
                 Column (horizontalAlignment = Alignment.CenterHorizontally,modifier = Modifier.weight(1f)){
                     Text(text = "Downloads", color=Color.White, fontSize = 14.sp)
-                    Text(text = "99.1K", color=Color.LightGray, fontSize = 12.sp)
+                    Text(text = imageDetail?.downloads.toString(), color=Color.LightGray, fontSize = 12.sp)
                 }
                 Column (horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)){
                     Text(text = "Likes", color=Color.White, fontSize = 14.sp)
-                    Text(text = "2", color=Color.LightGray, fontSize = 12.sp)
+                    Text(text = imageDetail?.likes.toString(), color=Color.LightGray, fontSize = 12.sp)
                 }
 
             }
@@ -245,34 +304,36 @@ fun ImageDetail() {
                 modifier = Modifier
                     .padding(16.dp),
 
-            ) {
+                ) {
                 FilledTonalButton (
-                    onClick = { onClick() },
-                        modifier = Modifier
-                            .padding(end = 16.dp),
+                    onClick = { },
+                    modifier = Modifier
+                        .padding(end = 16.dp),
                     colors = ButtonDefaults.buttonColors(Color.DarkGray),
                 ) {
                     Text("Scenery")
                 }
 
                 FilledTonalButton (
-                    onClick = { onClick() },
+                    onClick = { },
                     colors = ButtonDefaults.buttonColors(Color.DarkGray),
                     modifier = Modifier
                         .padding(end = 16.dp),
 
-                ) {
+                    ) {
                     Text("Spain")
                 }
             }
         }
     }
+
+
 }
 
-@Preview(showBackground = true)
-@Composable
-fun ImageDetailPreview() {
-    TestAppTheme {
-        ImageDetail()
-    }
-}
+//@Preview(showBackground = true)
+//@Composable
+//fun ImageDetailPreview() {
+//    TestAppTheme {
+//        ImageDetail()
+//    }
+//}
